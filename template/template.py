@@ -16,18 +16,15 @@ def singledispatchmethod(func):
     return wrapper
 
 
-def chmax(a: T, b: T) -> bool:
+def chmax(a: T, b: T) -> Tuple[T, bool]:
     if (a < b):
         a = b  # aをbで更新
-        return True
-    return False
+        return (a, True)
+    return (a, False)
 
 
 def chmin(a: T, b: T) -> Tuple[T, bool]:
-    """
-    aよりもbが小さいならばaをbで更新する
-    (更新されたならばtrueを返す)
-    """
+
     if (a > b):
         a = b  # aをbで更新
         return (a, True)
