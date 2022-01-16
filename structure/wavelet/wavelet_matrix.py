@@ -18,20 +18,9 @@
 構築: O( N log V )
 クエリ: O( log V )
 """
+from functools import singledispatchmethod
 from typing import *
 import bisect
-from functools import singledispatch, update_wrapper
-
-
-def singledispatchmethod(func):
-    dispatcher = singledispatch(func)
-
-    def wrapper(*args, **kw):
-        return dispatcher.dispatch(args[1].__class__)(*args, **kw)
-    wrapper.register = dispatcher.register
-    update_wrapper(wrapper, func)
-    return wrapper
-
 
 T = TypeVar('T', int, float)
 D = TypeVar('D', int, float)
@@ -52,8 +41,8 @@ class SuccinctIndexableDictionary:
         else:
             self.length = _length
             self.blocks = (_length + 31) >> 5
-            self.bit = [0]*self.blocks
-            self.sum = [0]*self.blocks
+            self.bit = [0] * self.blocks
+            self.sum = [0] * self.blocks
 
     def set(self, k: int) -> None:
         self.bit[k >> 5] |= (1 << (k & 31))
@@ -109,11 +98,11 @@ class WaveletMatrix(Generic[T]):
         self.length = len(v)
         self._T, self._MAXLOG = _template_args
         assert (self._T == int), "ERROR: Tはまだintしか対応していません"
-        l: List[T] = [self._T(0)]*self.length
-        r: List[T] = [self._T(0)]*self.length
+        l: List[T] = [self._T(0)] * self.length
+        r: List[T] = [self._T(0)] * self.length
 
-        self.matrix = [SuccinctIndexableDictionary()]*self._MAXLOG
-        self.mid = [0]*self._MAXLOG
+        self.matrix = [SuccinctIndexableDictionary()] * self._MAXLOG
+        self.mid = [0] * self._MAXLOG
         for level in range(self._MAXLOG - 1, -1, -1):
             self.matrix[level] = SuccinctIndexableDictionary(self.length + 1)
             left: int = 0
@@ -217,7 +206,7 @@ class CompressedWaveletMatrix(Generic[T]):
         seen: set = set()
         seen_add = seen.add
         self.ys = [x for x in self.ys if x not in seen and not seen_add(x)]
-        t: List[int] = [0]*len(v)
+        t: List[int] = [0] * len(v)
         for i in range(len(v)):
             t[i] = self.get(v[i])
         self.mat = WaveletMatrix[int]((int, self._MAXLOG), t)
@@ -275,13 +264,13 @@ class WaveletMatrixRectangleSum(Generic[T, D]):
         assert (self._D == int), "ERROR: Dはまだintしか対応していません"
         self.length = len(v)
         self._T, self._MAXLOG, self._D = _template_args
-        l: List[int] = [0]*self.length
-        r: List[int] = [0]*self.length
+        l: List[int] = [0] * self.length
+        r: List[int] = [0] * self.length
         ord: List[int] = list(range(self.length))
 
-        self.matrix = [SuccinctIndexableDictionary()]*self._MAXLOG
-        self.mid = [0]*self._MAXLOG
-        self.ds = [[self._D(0)]*self.length for _ in range(self._MAXLOG)]
+        self.matrix = [SuccinctIndexableDictionary()] * self._MAXLOG
+        self.mid = [0] * self._MAXLOG
+        self.ds = [[self._D(0)] * self.length for _ in range(self._MAXLOG)]
         for level in range(self._MAXLOG - 1, -1, -1):
             self.matrix[level] = SuccinctIndexableDictionary(self.length + 1)
             left: int = 0
@@ -300,7 +289,7 @@ class WaveletMatrixRectangleSum(Generic[T, D]):
             for i in range(right):
                 ord[left + i] = r[i]
 
-            self.ds[level] = [self._D()]*(self.length + 1)
+            self.ds[level] = [self._D()] * (self.length + 1)
             self.ds[level][0] = self._D()
             for i in range(self.length):
                 self.ds[level][i + 1] = self.ds[level][i] + d[ord[i]]
@@ -339,7 +328,7 @@ class CompressedWaveletMatrixRectangleSum(Generic[T, D]):
         seen: set = set()
         seen_add = seen.add
         self.ys = [x for x in self.ys if x not in seen and not seen_add(x)]
-        t: List[int] = [0]*len(v)
+        t: List[int] = [0] * len(v)
         for i in range(len(v)):
             t[i] = self.get(v[i])
         self.mat = WaveletMatrixRectangleSum[int, D](
