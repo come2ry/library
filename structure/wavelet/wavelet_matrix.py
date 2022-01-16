@@ -18,12 +18,8 @@
 構築: O( N log V )
 クエリ: O( log V )
 """
-from functools import singledispatchmethod
 from typing import *
 import bisect
-
-T = TypeVar('T', int, float)
-D = TypeVar('D', int, float)
 
 
 class SuccinctIndexableDictionary:
@@ -55,60 +51,87 @@ class SuccinctIndexableDictionary:
     def __getitem__(self, k: int) -> bool:
         return bool((self.bit[k >> 5] >> (k & 31)) & 1)
 
-    # @singledispatchmethod
-    # def rank(self, k: int) -> int:
-    #     return self.sum[k >> 5] + bin(self.bit[k >> 5] & ((1 << (k & 31)) - 1)).count("1")
+    def rank(self, *args: Any) -> int:
+        """
+        def rank(self, k: int) -> int:
+        def rank(self, val: bool, k: int) -> int:
+        """
+        ret: Optional[int] = None
+        val: bool = False
+        k: int = 0
+        if len(args) == 1:
+            k = args[0]
+            ret = self.sum[k >> 5] + \
+                bin(self.bit[k >> 5] & ((1 << (k & 31)) - 1)).count("1")
+            return ret
 
-    # @rank.register
-    def rank(self, val: bool, k: int = None) -> int:
-        if k is None:
-            k = val
-            return self.sum[k >> 5] + bin(self.bit[k >> 5] & ((1 << (k & 31)) - 1)).count("1")
-        return self.rank(k) if (val) else k - self.rank(k)
+        elif len(args) == 2:
+            val = args[0]
+            k = args[1]
+            ret = self.rank(k) if (val) else k - self.rank(k)
+            return ret
 
-    @singledispatchmethod
-    def select(self, val: bool, k: int) -> int:
-        if (k < 0) or (self.rank(val, self.length) <= k):
-            return -1
-        low: int = 0
-        high: int = self.length
-        while(high - low > 1):
-            mid: int = (low + high) >> 1
-            if (self.rank(val, mid) >= k + 1):
-                high = mid
-            else:
-                low = mid
+        assert (
+            ret is not None), f"ERROR: rankの引数の個数がおかしい\nExpected 1 or 2, Actual {len(args)}"
+        return ret
 
-        return high - 1
+    def select(self, val: bool, *args: Any) -> int:
+        """
+        def select(self, val: bool, k: int) -> int:
+        def select(self, val: bool, i: int, l: int) -> int:
+        """
+        ret: Optional[int] = None
+        k: int = 0
+        i: int = 0
+        l: int = 0
+        if len(args) == 1:
+            k = args[0]
+            if (k < 0) or (self.rank(val, self.length) <= k):
+                return -1
+            low: int = 0
+            high: int = self.length
+            while(high - low > 1):
+                mid: int = (low + high) >> 1
+                if (self.rank(val, mid) >= k + 1):
+                    high = mid
+                else:
+                    low = mid
 
-    @select.register
-    def _(self, val: bool, i: int, l: int) -> int:
-        return self.select(val, i + self.rank(val, l))
+            ret = high - 1
+            return ret
+
+        elif len(args) == 2:
+            i = args[0]
+            l = args[1]
+            ret = self.select(val, i + self.rank(val, l))
+            return ret
+
+        assert (ret is not None), f"ERROR: selectの引数の個数がおかしい\nExpected 2 or 3, Actual {1+len(args)}"
+        return ret
 
 
-class WaveletMatrix(Generic[T]):
-    _T: Type[T]
-    _MAXLOG: int
+class WaveletMatrix:
+    MAXLOG: int
 
     length: int
     matrix: List[SuccinctIndexableDictionary]
     mid: List[int]
 
-    def __init__(self, _template_args: Tuple[Type[T], int], v: List[T]) -> None:
+    def __init__(self, _MAXLOG: int, v: List[int]) -> None:
         self.length = len(v)
-        self._T, self._MAXLOG = _template_args
-        assert (self._T == int), "ERROR: Tはまだintしか対応していません"
-        l: List[T] = [self._T(0)] * self.length
-        r: List[T] = [self._T(0)] * self.length
+        self.MAXLOG = _MAXLOG
+        l: List[int] = [int(0)] * self.length
+        r: List[int] = [int(0)] * self.length
 
-        self.matrix = [SuccinctIndexableDictionary()] * self._MAXLOG
-        self.mid = [0] * self._MAXLOG
-        for level in range(self._MAXLOG - 1, -1, -1):
+        self.matrix = [None] * self.MAXLOG  # type: ignore
+        self.mid = [0] * self.MAXLOG
+        for level in range(self.MAXLOG - 1, -1, -1):
             self.matrix[level] = SuccinctIndexableDictionary(self.length + 1)
             left: int = 0
             right: int = 0
             for i in range(self.length):
-                if (((v[i] >> level) & 1)):  # type: ignore
+                f: bool = bool((v[i] >> level) & 1)
+                if (f):
                     self.matrix[level].set(i)
                     r[right] = v[i]
                     right += 1
@@ -124,84 +147,88 @@ class WaveletMatrix(Generic[T]):
     def succ(self, f: bool, l: int, r: int, level: int) -> Tuple[int, int]:
         return (self.matrix[level].rank(f, l) + self.mid[level] * f, self.matrix[level].rank(f, r) + self.mid[level] * f)
 
-    def access(self, k: int) -> T:
-        ret: T = 0
-        for level in range(self._MAXLOG - 1, -1, -1):
+    def access(self, k: int) -> int:
+        ret: int = 0
+        for level in range(self.MAXLOG - 1, -1, -1):
             f: bool = self.matrix[level][k]
             if (f):
-                ret |= self._T(1) << level  # type: ignore
+                ret |= int(1) << level  # type: ignore
             k = self.matrix[level].rank(f, k) + self.mid[level] * f
         return ret
 
-    def __getitem__(self, k: int) -> T:
+    def __getitem__(self, k: int) -> int:
         return self.access(k)
 
-    def rank(self, x: T, r: int) -> int:
+    def rank(self, x: int, r: int) -> int:
         l: int = 0
-        for level in range(self._MAXLOG - 1, -1, -1):
+        for level in range(self.MAXLOG - 1, -1, -1):
             (l, r) = self.succ(bool((x >> level) & 1), l, r, level)  # type: ignore
         return r - l
 
-    def kth_smallest(self, l: int, r: int, k: int) -> T:
+    def kth_smallest(self, l: int, r: int, k: int) -> int:
         assert ((0 <= k) and (k < r - l)), "ERROR: 0 <= k && k < r - lではない"
-        ret: T = 0
-        for level in range(self._MAXLOG - 1, -1, -1):
+        ret: int = 0
+        for level in range(self.MAXLOG - 1, -1, -1):
             cnt: int = self.matrix[level].rank(
                 False, r) - self.matrix[level].rank(False, l)
             f: bool = (cnt <= k)
             if (f):
-                ret |= self._T(1) << level  # type: ignore
+                ret |= int(1) << level  # type: ignore
                 k -= cnt
             (l, r) = self.succ(f, l, r, level)
         return ret
 
-    def kth_largest(self, l: int, r: int, k: int) -> T:
+    def kth_largest(self, l: int, r: int, k: int) -> int:
         return self.kth_smallest(l, r, r - l - k - 1)
 
-    # @singledispatchmethod
-    # def range_freq(self, l: int, r: int, upper: T) -> int:
-    #     ret: int = 0
-    #     for level in range(self._MAXLOG - 1, -1, -1):
-    #         f: bool = ((upper >> level) & 1)  # type: ignore
-    #         if (f):
-    #             ret += self.matrix[level].rank(False, r) - \
-    #                 self.matrix[level].rank(False, l)
-    #         (l, r) = self.succ(f, l, r, level)
-    #     return ret
+    def range_freq(self, l: int, r: int, *args: int) -> int:
+        """
+        def range_freq(self, l: int, r: int, upper: int) -> int:
+        def range_freq(self, l: int, r: int, lower: int, upper: int) -> int:
+        """
+        ret: Optional[int] = None
+        lower: int = 0
+        upper: int = 0
 
-    # @range_freq.register
-    def range_freq(self, l: int, r: int, lower: T, upper: T = None) -> int:
-        if upper is None:
-            upper = lower
-            ret: int = 0
-            for level in range(self._MAXLOG - 1, -1, -1):
-                f: bool = ((upper >> level) & 1)  # type: ignore
+        if len(args) == 1:
+            upper = args[0]
+            ret = 0
+            for level in range(self.MAXLOG - 1, -1, -1):
+                f: bool = bool((upper >> level) & 1)
                 if (f):
                     ret += self.matrix[level].rank(False, r) - \
                         self.matrix[level].rank(False, l)
                 (l, r) = self.succ(f, l, r, level)
             return ret
-        return self.range_freq(l, r, upper) - self.range_freq(l, r, lower)
 
-    def prev_value(self, l: int, r: int, upper: T) -> T:
+        elif len(args) == 2:
+            lower = args[0]
+            upper = args[1]
+            ret = self.range_freq(l, r, upper) - self.range_freq(l, r, lower)
+            return ret
+
+        assert (
+            ret is not None), f"ERROR: range_freqの引数の個数がおかしい\nExpected 3 or 4, Actual {2+len(args)}"
+        return ret
+
+    def prev_value(self, l: int, r: int, upper: int) -> int:
         cnt: int = self.range_freq(l, r, upper)
-        return self._T(-1) if (cnt == 0) else self.kth_smallest(l, r, cnt - 1)
+        return int(-1) if (cnt == 0) else self.kth_smallest(l, r, cnt - 1)
 
-    def next_value(self, l: int, r: int, lower: T) -> T:
+    def next_value(self, l: int, r: int, lower: int) -> int:
         cnt: int = self.range_freq(l, r, lower)
-        return self._T(-1) if (cnt == (r - l)) else self.kth_smallest(l, r, cnt)
+        return int(-1) if (cnt == (r - l)) else self.kth_smallest(l, r, cnt)
 
 
-class CompressedWaveletMatrix(Generic[T]):
-    _T: Type[T]
-    _MAXLOG: int
+class CompressedWaveletMatrix:
+    MAXLOG: int
 
-    mat: WaveletMatrix[int]
-    ys: List[T]
+    mat: WaveletMatrix
+    ys: List[int]
 
-    def __init__(self, _template_args: Tuple[Type[T], int], v: List[T]) -> None:
+    def __init__(self, _MAXLOG: int, v: List[int]) -> None:
         self.ys = v.copy()
-        self._T, self._MAXLOG = _template_args
+        self.MAXLOG = _MAXLOG
         self.ys.sort()
         seen: set = set()
         seen_add = seen.add
@@ -209,69 +236,82 @@ class CompressedWaveletMatrix(Generic[T]):
         t: List[int] = [0] * len(v)
         for i in range(len(v)):
             t[i] = self.get(v[i])
-        self.mat = WaveletMatrix[int]((int, self._MAXLOG), t)
+        self.mat = WaveletMatrix(self.MAXLOG, t)
 
-    def get(self, x: T) -> int:
+    def get(self, x: int) -> int:
         return bisect.bisect_left(self.ys, x)
 
-    def access(self, k: int) -> T:
+    def access(self, k: int) -> int:
         return self.ys[self.mat.access(k)]
 
-    def __getitem__(self, k: int) -> T:
+    def __getitem__(self, k: int) -> int:
         return self.access(k)
 
-    def rank(self, x: T, r: int) -> int:
+    def rank(self, x: int, r: int) -> int:
         pos: int = self.get(x)
         if (pos == len(self.ys) or self.ys[pos] != x):
             return 0
         return self.mat.rank(pos, r)
 
-    def kth_smallest(self, l: int, r: int, k: int) -> T:
+    def kth_smallest(self, l: int, r: int, k: int) -> int:
         return self.ys[self.mat.kth_smallest(l, r, k)]
 
-    def kth_largest(self, l: int, r: int, k: int) -> T:
+    def kth_largest(self, l: int, r: int, k: int) -> int:
         return self.ys[self.mat.kth_largest(l, r, k)]
 
-    @singledispatchmethod
-    def range_freq(self, l: int, r: int, upper: T) -> int:
-        return self.mat.range_freq(l, r, self.get(upper))
+    def range_freq(self, l: int, r: int, *args: Any) -> int:
+        """
+        def range_freq(self, l: int, r: int, upper: int) -> int:
+        def range_freq(self, l: int, r: int, lower: int, upper: int) -> int:
+        """
+        ret: Optional[int] = None
+        lower: int = 0
+        upper: int = 0
 
-    @range_freq.register
-    def _(self, l: int, r: int, lower: T, upper: T) -> int:
-        return self.mat.range_freq(l, r, self.get(lower), self.get(upper))
+        if len(args) == 1:
+            upper = args[0]
+            ret = self.mat.range_freq(l, r, self.get(upper))
+            return ret
 
-    def prev_value(self, l: int, r: int, upper: T) -> T:
-        ret: T = self.mat.prev_value(l, r, self.get(upper))
-        return self._T(-1) if (ret == -1) else self.ys[ret]  # type: ignore
+        elif len(args) == 2:
+            lower = args[0]
+            upper = args[1]
+            ret = self.mat.range_freq(l, r, self.get(lower), self.get(upper))
+            return ret
 
-    def next_value(self, l: int, r: int, lower: T) -> T:
-        ret: T = self.mat.next_value(l, r, self.get(lower))
-        return self._T(-1) if (ret == -1) else self.ys[ret]  # type: ignore
+        assert (
+            ret is not None), f"ERROR: range_freqの引数の個数がおかしい\nExpected 3 or 4, Actual {2+len(args)}"
+        return ret
+
+    def prev_value(self, l: int, r: int, upper: int) -> int:
+        ret: int = self.mat.prev_value(l, r, self.get(upper))
+        return int(-1) if (ret == -1) else self.ys[ret]  # type: ignore
+
+    def next_value(self, l: int, r: int, lower: int) -> int:
+        ret: int = self.mat.next_value(l, r, self.get(lower))
+        return int(-1) if (ret == -1) else self.ys[ret]  # type: ignore
 
 
-class WaveletMatrixRectangleSum(Generic[T, D]):
-    _T: Type[T]
-    _MAXLOG: int
-    _D: Type[D]
+class WaveletMatrixRectangleSum:
+    MAXLOG: int
 
     length: int
     matrix: List[SuccinctIndexableDictionary]
-    ds: List[List[D]]
+    ds: List[List[int]]
     mid: List[int]
 
-    def __init__(self, _template_args: Tuple[Type[T], int, Type[D]], v: List[T], d: List[D]) -> None:
+    def __init__(self, _MAXLOG: int, v: List[int], d: List[int]) -> None:
         assert (len(v) == len(d)), ""
-        assert (self._D == int), "ERROR: Dはまだintしか対応していません"
         self.length = len(v)
-        self._T, self._MAXLOG, self._D = _template_args
+        self.MAXLOG = _MAXLOG
         l: List[int] = [0] * self.length
         r: List[int] = [0] * self.length
         ord: List[int] = list(range(self.length))
 
-        self.matrix = [SuccinctIndexableDictionary()] * self._MAXLOG
-        self.mid = [0] * self._MAXLOG
-        self.ds = [[self._D(0)] * self.length for _ in range(self._MAXLOG)]
-        for level in range(self._MAXLOG - 1, -1, -1):
+        self.matrix = [None] * self.MAXLOG   # type: ignore
+        self.mid = [0] * self.MAXLOG
+        self.ds = [[int(0)] * self.length for _ in range(self.MAXLOG)]
+        for level in range(self.MAXLOG - 1, -1, -1):
             self.matrix[level] = SuccinctIndexableDictionary(self.length + 1)
             left: int = 0
             right: int = 0
@@ -289,41 +329,54 @@ class WaveletMatrixRectangleSum(Generic[T, D]):
             for i in range(right):
                 ord[left + i] = r[i]
 
-            self.ds[level] = [self._D()] * (self.length + 1)
-            self.ds[level][0] = self._D()
+            self.ds[level] = [0] * (self.length + 1)
+            self.ds[level][0] = 0
             for i in range(self.length):
                 self.ds[level][i + 1] = self.ds[level][i] + d[ord[i]]
 
     def succ(self, f: bool, l: int, r: int, level: int) -> Tuple[int, int]:
         return (self.matrix[level].rank(f, l) + self.mid[level] * f, self.matrix[level].rank(f, r) + self.mid[level] * f)
 
-    @singledispatchmethod
-    def rect_sum(self, l: int, r: int, upper: T) -> D:
-        ret: D = 0
-        for level in range(self._MAXLOG - 1, -1, -1):
-            f: bool = ((upper >> level) & 1)   # type: ignore
-            if (f):
-                ret += self.ds[level][self.matrix[level].rank(
-                    False, r)] - self.ds[level][self.matrix[level].rank(False, l)]
-            (l, r) = self.succ(f, l, r, level)
+    def rect_sum(self, l: int, r: int, *args: Any) -> int:
+        """
+        def rect_sum(self, l: int, r: int, upper: int) -> int:
+        def rect_sum(self, l: int, r: int, lower: int, upper: int) -> int:
+        """
+        ret: Optional[int] = None
+        lower: int = 0
+        upper: int = 0
+
+        if len(args) == 1:
+            upper = args[0]
+            ret = 0
+            for level in range(self.MAXLOG - 1, -1, -1):
+                f: bool = ((upper >> level) & 1)   # type: ignore
+                if (f):
+                    ret += self.ds[level][self.matrix[level].rank(
+                        False, r)] - self.ds[level][self.matrix[level].rank(False, l)]
+                (l, r) = self.succ(f, l, r, level)
+            return ret
+
+        elif len(args) == 2:
+            lower = args[0]
+            upper = args[1]
+            ret = self.rect_sum(l, r, upper) - self.rect_sum(l, r, lower)
+            return ret
+
+        assert (
+            ret is not None), f"ERROR: rect_sumの引数の個数がおかしい\nExpected 3 or 4, Actual {2+len(args)}"
         return ret
 
-    @rect_sum.register
-    def _(self, l: int, r: int, lower: T, upper: T) -> D:
-        return self.rect_sum(l, r, upper) - self.rect_sum(l, r, lower)
 
+class CompressedWaveletMatrixRectangleSum:
+    MAXLOG: int
 
-class CompressedWaveletMatrixRectangleSum(Generic[T, D]):
-    _T: Type[T]
-    _MAXLOG: int
-    _D: Type[D]
+    mat: WaveletMatrixRectangleSum
+    ys: List[int]
 
-    mat: WaveletMatrixRectangleSum[int, D]
-    ys: List[T]
-
-    def __init__(self, _template_args: Tuple[Type[T], int, Type[D]], v: List[T], d: List[D]) -> None:
+    def __init__(self, _MAXLOG: int, v: List[int], d: List[int]) -> None:
         self.ys = v.copy()
-        self._T, self._MAXLOG, self._D = _template_args
+        self.MAXLOG = _MAXLOG
         self.ys.sort()
         seen: set = set()
         seen_add = seen.add
@@ -331,27 +384,42 @@ class CompressedWaveletMatrixRectangleSum(Generic[T, D]):
         t: List[int] = [0] * len(v)
         for i in range(len(v)):
             t[i] = self.get(v[i])
-        self.mat = WaveletMatrixRectangleSum[int, D](
-            (int, self._MAXLOG, self._D), t, d)
+        self.mat = WaveletMatrixRectangleSum(self.MAXLOG, t, d)
 
-    def get(self, x: T) -> int:
+    def get(self, x: int) -> int:
         return bisect.bisect_left(self.ys, x)
 
-    @singledispatchmethod
-    def rect_sum(self, l: int, r: int, upper: T) -> D:
-        return self.mat.rect_sum(l, r, self.get(upper))
+    def rect_sum(self, l: int, r: int, *args: Any) -> int:
+        """
+        def rect_sum(self, l: int, r: int, upper: int) -> int:
+        def rect_sum(self, l: int, r: int, lower: int, upper: int) -> int:
+        """
+        ret: Optional[int] = None
+        lower: int = 0
+        upper: int = 0
 
-    @rect_sum.register
-    def _(self, l: int, r: int, lower: T, upper: T) -> D:
-        return self.mat.rect_sum(l, r, self.get(lower), self.get(upper))
+        if len(args) == 1:
+            upper = args[0]
+            ret = self.mat.rect_sum(l, r, self.get(upper))
+            return ret
+
+        elif len(args) == 2:
+            lower = args[0]
+            upper = args[1]
+            ret = self.mat.rect_sum(l, r, self.get(lower), self.get(upper))
+            return ret
+
+        assert (
+            ret is not None), f"ERROR: rect_sumの引数の個数がおかしい\nExpected 3 or 4, Actual {2+len(args)}"
+        return ret
 
 
-def compress(A: List[T]) -> List[T]:
-    apr: Set[T] = set()
+def compress(A: List[int]) -> List[int]:
+    apr: Set[int] = set()
     for e in A:
         apr.add(e)
-    ret: List[T] = []
-    nums: List[T] = []
+    ret: List[int] = []
+    nums: List[int] = []
     for e in apr:
         nums.append(e)
     for e in A:
@@ -372,12 +440,11 @@ def main() -> None:
     for i in range(N):
         A[i], B[i] = p[i]
 
-    WM: CompressedWaveletMatrix[int] = CompressedWaveletMatrix[int](
-        (int, 20), B)
+    wm: CompressedWaveletMatrix = CompressedWaveletMatrix(20, B)
     ans: int = 0
     for i in range(N):
         pp: int = bisect.bisect_left(A, A[i])
-        ans += WM.range_freq(0, pp, B[i], float('inf'))
+        ans += wm.range_freq(0, pp, B[i], float('inf'))
     print(ans)
 
 

@@ -7,12 +7,13 @@ from template.template import *
 from structure.wavelet.wavelet_matrix import *
 
 
-def solve(n: int, a: List[int], q: int, l: List[int], r: List[int], d: List[int]):
+def solve(n: int, a: List[int], q: int,
+          l: List[int], r: List[int], d: List[int]):
     OFS = int(1e6)
     a = list(map(lambda x: x + OFS, a))
     bitlen = len(bin(10**5)) - 2
 
-    wm = CompressedWaveletMatrix((int, bitlen), a)
+    wm = CompressedWaveletMatrix(bitlen, a)
 
     for i in range(q):
         li, ri, di = l[i], r[i], d[i]
