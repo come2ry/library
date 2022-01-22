@@ -415,13 +415,9 @@ class CompressedWaveletMatrixRectangleSum:
 
 
 def compress(A: List[int]) -> List[int]:
-    apr: Set[int] = set()
-    for e in A:
-        apr.add(e)
+    nums: List[int] = list(dict.fromkeys(A).keys())
+    nums.sort()
     ret: List[int] = []
-    nums: List[int] = []
-    for e in apr:
-        nums.append(e)
     for e in A:
         ret.append(bisect.bisect_left(nums, e))
     return ret
