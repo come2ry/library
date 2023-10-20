@@ -444,3 +444,73 @@ class fenwick_tree(object):
                 i += k
             k >>= 1
         return i
+
+
+# https://atcoder.jp/contests/arc136/submissions/29742197
+class fenwick_tree:
+    """Given an array of length n, it processes the following queries in O(log n) time.
+
+    >   Updating an element
+
+    >   Calculating the sum of the elements of an interval
+    """
+
+    __slots__ = ["n", "data"]
+
+    def __init__(self, n):
+        """It creates an array a[0], a[1], ... , a[n-1] of length n.
+        All the elements are initialized to 0.
+
+        Constraints
+        -----------
+
+        >   0 <= n <= 10 ** 8
+
+        Complexity
+        ----------
+
+        >   O(n)
+        """
+        self.n = n
+        self.data = [0] * self.n
+
+    def add(self, p, x):
+        """It processes a[p] += x.
+
+        Constraints
+        -----------
+
+        >   0 <= p < n
+
+        Complexity
+
+        >   O(log n)
+        """
+        # assert 0 <= p < self.n
+        p += 1
+        while p <= self.n:
+            self.data[p - 1] += x
+            p += p & -p
+
+    def sum(self, l, r):
+        """It returns a[l] + a[l-1] + ... + a[r-1].
+
+        Constraints
+        -----------
+
+        >   0 <= l <= r <= n
+
+        Complexity
+        ----------
+
+        >   O(log n)
+        """
+        # assert 0 <= l <= r <= self.n
+        return self._sum(r) - self._sum(l)
+
+    def _sum(self, r):
+        s = 0
+        while r > 0:
+            s += self.data[r - 1]
+            r -= r & -r
+        return s
